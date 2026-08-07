@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>FTB FUN RUN 2026</title>
+  <style>
+    body {
+      background-color: #f4f6f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    .app-container {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    h2 { color: #003366; margin-bottom: 5px; }
+    p { color: #666; font-size: 14px; margin-bottom: 15px; }
+    
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      background: #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #ccc;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      touch-action: none;
+    }
+    
+    .controls { margin-top: 15px; }
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    input[type="range"] { flex: 1; accent-color: #003366; }
+    
+    .buttons { display: flex; gap: 10px; }
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      color: white;
+    }
+    .btn-upload { background: #003366; }
+    .btn-download { background: #D4AF37; color: black; }
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <h2>បោះជំហាន ដើម្បីសុខភាព</h2>
+  <p>អូសរូបថតដើម្បីតម្រឹម | Drag to position</p>
+
+  <div class="canvas-wrapper">
+    <canvas id="photoCanvas" width="1080" height="1440"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="slider-container">
+      <span>🔍 Zoom:</span>
+      <input type="range" id="zoomSlider" min="0.2" max="3" step="0.05" value="1" disabled>
+    </div>
+    <div class="buttons">
+      <button class="btn-upload" onclick="document.getElementById('fileInput').click()">📷 ជ្រើសរើសរូបថត</button>
+      <button class="btn-download" id="downloadBtn" onclick="downloadImage()" disabled>📥 ទាញយក</button>
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept="image/*">
+</div>
+
+<script>
+  const canvas = document.getElementById('photoCanvas');
+  const ctx = canvas.getContext('2d');
+  const zoomSlider = document.getElementById('zoomSlider');
+  const downloadBtn = document.getElementById('downloadBtn');
+  
+  let userImg = null;
+  let imgX = 0, imgY = 0, imgScale = 1;
+  let isDragging = false, startX, startY;
+
+  const frameImg = new Image();
+  frameImg.src = 'frame.png.png';
+  
+  frameImg.onload = () => draw();
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (userImg) {
+      ctx.drawImage(userImg, imgX, imgY, userImg.width * imgScale, userImg.height * imgScale);
+    } else {
+      ctx.fillStyle = 'red';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+  }
+
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      userImg = new Image();
+      userImg.onload = () => {
+        imgScale = Math.max(canvas.width / userImg.width, canvas.height / userImg.height);
+        imgX = (canvas.width - userImg.width * imgScale) / 2;
+        imgY = (canvas.height - userImg.height * imgScale) / 2;
+        
+        zoomSlider.value = imgScale;
+        zoomSlider.disabled = false;
+        downloadBtn.disabled = false;
+        draw();
+      };
+      userImg.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  zoomSlider.addEventListener('input', (e) => {
+    if (!userImg) return;
+    imgScale = parseFloat(e.target.value);
+    draw();
+  });
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (clientX - rect.left) * (canvas.width / rect.width), y: (clientY - rect.top) * (canvas.height / rect.height) };
+  }
+
+  function startDrag(e) {
+    if (!userImg) return;
+    isDragging = true;
+    const pos = getPos(e);
+    startX = pos.x - imgX;
+    startY = pos.y - imgY;
+  }
+
+  function doDrag(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    imgX = pos.x - startX;
+    imgY = pos.y - startY;
+    draw();
+  }
+
+  function endDrag() { isDragging = false; }
+
+  canvas.addEventListener('mousedown', startDrag);
+  window.addEventListener('mousemove', doDrag);
+  window.addEventListener('mouseup', endDrag);
+  
+  canvas.addEventListener('touchstart', startDrag);
+  canvas.addEventListener('touchmove', doDrag, { passive: false });
+  canvas.addEventListener('touchend', endDrag);
+
+  // Updated Download Function for iOS Support
+  async function downloadImage() {
+    if (!userImg) return;
+    
+    const dataUrl = canvas.toDataURL('image/png', 1.0);
+    
+    if (navigator.canShare) {
+      try {
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+        const file = new File([blob], "FTB_FunRun_2026.png", { type: "image/png" });
+        
+        await navigator.share({
+          files: [file],
+          title: 'FTB Fun Run 2026'
+        });
+      } catch (error) {
+        console.log('Sharing canceled or failed.', error);
+      }
+    } else {
+      const link = document.createElement('a');
+      link.download = 'FTB_FunRun_2026.png';
+      link.href = dataUrl;
+      link.click();
+    }
+  }
+</script>
+
+</body>
+</html>
